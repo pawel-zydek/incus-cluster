@@ -1,0 +1,34 @@
+# Założenie klastra na incus1:
+#   incus admin init --preseed < preseed/incus1-bootstrap.yaml
+config:
+  core.https_address: 192.168.150.11:8443
+
+networks:
+  - name: incusbr0
+    type: bridge
+    config:
+      ipv4.address: 10.150.0.1/24     # sieć instancji (NAT przez węzeł)
+      ipv4.nat: "true"
+      ipv6.address: none
+
+storage_pools:
+  - name: local
+    driver: zfs
+    config:
+      source: /dev/disk/by-id/virtio-incus-data   # cały drugi dysk węzła
+
+profiles:
+  - name: default
+    devices:
+      root:
+        type: disk
+        path: /
+        pool: local
+      eth0:
+        type: nic
+        name: eth0
+        network: incusbr0
+
+cluster:
+  server_name: incus1
+  enabled: true

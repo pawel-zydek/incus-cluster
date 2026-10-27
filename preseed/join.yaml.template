@@ -1,0 +1,15 @@
+# Dołączenie węzła do klastra (incus2, incus3).
+# Nie zapisuj w gicie wersji z tokenem - token jest jednorazowy, ale to wciąż sekret.
+# Użycie (patrz README):
+#   sed -e "s/NODE_NAME/incus2/" -e "s/NODE_IP/192.168.150.12/" -e "s|TOKEN|<token>|" \
+#     preseed/join.yaml.template | ssh root@192.168.150.12 incus admin init --preseed
+cluster:
+  enabled: true
+  server_name: NODE_NAME
+  server_address: NODE_IP:8443
+  cluster_token: TOKEN
+  member_config:
+    - entity: storage-pool
+      name: local
+      key: source
+      value: /dev/disk/by-id/virtio-incus-data
