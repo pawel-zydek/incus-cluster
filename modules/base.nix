@@ -67,6 +67,7 @@ in
     btop
     tcpdump
     nvd
+    mc
   ];
 
   system.stateVersion = "26.05";

@@ -152,7 +152,7 @@ Adres instalatora i systemu jest ten sam, ale klucz hosta SSH jest inny, więc n
 ```bash
 ssh-keygen -R 192.168.150.11
 ssh root@192.168.150.11 'hostname; zpool status rpool; systemctl is-active incus'
-ssh root@192.168.150.11 passwd pawel       # hasło do konsoli i sudo
+ssh -t root@192.168.150.11 passwd pawel       # hasło do konsoli i sudo
 ```
 
 Powtórz kroki 2a–2d dla `incus2` (192.168.150.12) i `incus3` (192.168.150.13).
