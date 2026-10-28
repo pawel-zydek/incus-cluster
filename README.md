@@ -122,12 +122,17 @@ nix run github:nix-community/nixos-anywhere -- \
   --no-reboot
 ```
 
-nixos-anywhere łączy się przez SSH, uruchamia disko (**kasuje dysk systemowy VM**),
-instaluje system z tego repozytorium i odmontowuje pulę. Dysk danych pozostaje pusty.
+nixos-anywhere łączy się przez SSH, uruchamia disko (**kasuje dysk systemowy VM**)
+i instaluje system z tego repozytorium. Dysk danych pozostaje pusty.
 
-### 2c. Pierwszy start z dysku
+### 2c. Eksport puli i pierwszy start z dysku
+
+Przy `--no-reboot` nixos-anywhere **nie eksportuje** puli `rpool`. Bez eksportu pula zostaje oznaczona
+jako używana przez instalator i zainstalowany system odmawia jej importu (start kończy się w trybie awaryjnym).
 
 ```bash
+ssh nixos@192.168.150.11 'sudo umount -Rl /mnt; sudo zpool export -a; sudo zpool list'
+# "no pools available" = pula wyeksportowana
 virsh destroy incus1      # wyłączenie instalatora
 virsh start incus1        # start już z dysku
 ```
@@ -266,7 +271,7 @@ sudo zfs rollback -r rpool/vm@klaster-czysty
 | `nix` nie zna `flake` / `run` | `export NIX_CONFIG="experimental-features = nix-command flakes"` |
 | Zmiany w plikach są ignorowane | `git add -A` - flake widzi tylko pliki w gicie |
 | `ssh`: *REMOTE HOST IDENTIFICATION HAS CHANGED* | po reinstalacji węzła: `ssh-keygen -R <adres>` |
-| Węzeł staje na imporcie `rpool` | w konsoli awaryjnej `zpool import -f rpool`, potem `reboot` |
+| Węzeł staje na imporcie `rpool` (*Failed to start Import ZFS pool*) | pula nie została wyeksportowana: w menu systemd-boot `e`, dopisz ` zfs_force=1`, Enter (jednorazowo) |
 | VM nie startuje: *Access Denied* / Secure Boot | maszyna ma firmware z Secure Boot - utwórz ją ponownie skryptem |
 | Węzeł nie ma sieci | MAC w `virsh domiflist <węzeł>` musi się zgadzać z `nodes.nix` |
 | `incus launch --vm`: brak `/dev/kvm` | brak zagnieżdżonej wirtualizacji na laptopie (krok 1a) |

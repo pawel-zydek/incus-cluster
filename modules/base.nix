@@ -22,6 +22,10 @@ in
   services.zfs.trim.enable = true;
   zramSwap.enable = true;
 
+  # Powłoka awaryjna w initrd bez hasła (root nie ma hasła, więc bez tego jest zablokowana).
+  # Akceptowalne w laboratorium; na prawdziwym serwerze lepiej ustawić hasło roota.
+  boot.initrd.systemd.emergencyAccess = true;
+
   networking.hostName = nodeName;
   networking.hostId = nodes.${nodeName}.hostId;   # wymagane przez ZFS, inne na każdym węźle
 
