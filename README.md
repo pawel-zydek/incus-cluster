@@ -80,51 +80,16 @@ preseed/
 
 # 1. Przygotowanie laptopa (jednorazowo)
 
-### 1a. Osobny dataset i pula dla laboratorium
-
-Snapshot ZFS obejmuje cały dataset. Gdyby dyski węzłów leżały razem z Windows 11 w `rpool/vm`
-(`/var/lib/libvirt/images`), każdy snapshot i każdy `rollback` dotyczyłby obu naraz.
-Dlatego laboratorium dostaje własny dataset `rpool/incuslab` - obok `rpool/vm`, nie w nim,
-więc nawet `zfs snapshot -r rpool/vm` go nie obejmie:
-
-```
-rpool/vm         /var/lib/libvirt/images     Windows 11, obrazy ISO
-rpool/incuslab   /var/lib/libvirt/incuslab   dyski incus1..3
-```
+**Wymaganie:** dyski węzłów leżą na laptopie w osobnym datasecie ZFS **`rpool/vm-lab`**,
+zamontowanym w **`/var/lib/libvirt/vm-lab`** (pula libvirta `vm-lab`). Dataset jest opisany
+w konfiguracji laptopa (`nixos-config`, `hosts/pg`), nie w tym repozytorium. Dzięki temu
+snapshoty laboratorium są niezależne od Windows 11 w `rpool/vm`.
 
 ```bash
-# stan obecny
-zfs list -o name,mountpoint,used,encryptionroot rpool/vm
-
-# nowy dataset; szyfrowanie dziedziczy po rpool (odblokowuje go to samo hasło przy starcie)
-sudo zfs create \
-  -o mountpoint=/var/lib/libvirt/incuslab \
-  -o recordsize=64K \
-  -o atime=off \
-  rpool/incuslab
-
-zfs list -o name,mountpoint,used,encryptionroot,compression rpool/vm rpool/incuslab
+findmnt /var/lib/libvirt/vm-lab        # musi pokazać rpool/vm-lab
 ```
 
-- `recordsize=64K` - rozmiar bloku ZFS równy rozmiarowi klastra qcow2 (mniej odczytów
-  i zapisów przy losowym I/O dysków VM).
-- `mountpoint` ustawiony na stałe (nie `legacy`), więc NixOS zamontuje dataset przy starcie
-  sam (`zfs-mount.service`), bez wpisu w `nixos-config`. Sprawdzenie po restarcie laptopa:
-  `findmnt /var/lib/libvirt/incuslab`.
-
-Pula libvirta w tym katalogu (żeby virt-manager pokazywał dyski węzłów osobno):
-
-```bash
-virsh pool-define-as incuslab dir --target /var/lib/libvirt/incuslab
-virsh pool-start incuslab
-virsh pool-autostart incuslab
-virsh pool-list --all
-```
-
-`libvirt/create-vms.sh` zakłada dyski węzłów właśnie tutaj. Snapshoty - kroki 2e i 4e
-oraz „Snapshoty na laptopie” w części „Codzienna praca”.
-
-### 1b. Obraz instalatora
+### 1a. Obraz instalatora
 
 Pobierz *Minimal ISO image* NixOS 26.05 (64-bit Intel/AMD) i skopiuj go pod stałą nazwą:
 
@@ -132,7 +97,7 @@ Pobierz *Minimal ISO image* NixOS 26.05 (64-bit Intel/AMD) i skopiuj go pod sta�
 sudo cp ~/Pobrane/nixos-minimal-26.05*.iso /var/lib/libvirt/images/nixos-minimal.iso
 ```
 
-### 1c. Sieci
+### 1b. Sieci
 
 ```bash
 cd ~/incus-cluster
@@ -149,7 +114,7 @@ virsh net-list --all
 
 `virsh` łączy się z `qemu:///system` (zmienna `LIBVIRT_DEFAULT_URI` z `kvm.nix`), więc `sudo` nie jest potrzebne.
 
-### 1d. Maszyny wirtualne
+### 1c. Maszyny wirtualne
 
 ```bash
 ./libvirt/create-vms.sh
@@ -249,12 +214,12 @@ Powtórz kroki 2a–2d dla `incus2` (192.168.150.12) i `incus3` (192.168.150.13)
 
 ### 2e. Punkt kontrolny
 
-Dyski węzłów leżą na datasecie `rpool/incuslab`, więc jeden snapshot zapisuje cały stan
+Dyski węzłów leżą na datasecie `rpool/vm-lab`, więc jeden snapshot zapisuje cały stan
 laboratorium (Windows 11 w `rpool/vm` zostaje nietknięty):
 
 ```bash
 virsh shutdown incus1; virsh shutdown incus2; virsh shutdown incus3
-sudo zfs snapshot rpool/incuslab@wezly-zainstalowane
+sudo zfs snapshot rpool/vm-lab@wezly-zainstalowane
 ```
 
 ---
@@ -347,7 +312,7 @@ incus stop v1 && incus move v1 --target incus1 && incus start v1   # przeniesien
 `https://192.168.150.11:8443` w Firefoksie na laptopie. Panel poprowadzi przez utworzenie certyfikatu
 przeglądarki; certyfikat dodaje się do zaufanych poleceniem pokazanym w panelu (`incus config trust add-certificate ...`).
 
-Snapshot po założeniu klastra (przy wyłączonych węzłach): `sudo zfs snapshot rpool/incuslab@klaster-czysty`.
+Snapshot po założeniu klastra (przy wyłączonych węzłach): `sudo zfs snapshot rpool/vm-lab@klaster-czysty`.
 
 ---
 
@@ -459,39 +424,24 @@ ssh root@192.168.150.11 incus cluster restore incus2 --force    # instancje wrac
 
 Powtórz dla pozostałych węzłów, potem `git commit -am "Aktualizacja flake.lock" && git push`.
 
-### Snapshoty na laptopie
+### Snapshoty laboratorium
 
-Laboratorium i Windows 11 mają osobne datasety, więc snapshoty i powroty są niezależne.
-
-```bash
-zfs list -t snapshot -o name,creation,used rpool/incuslab rpool/vm
-```
-
-**Laboratorium** (`rpool/incuslab`) - zawsze wszystkie trzy węzły wyłączone razem,
-żeby snapshot był spójny dla całego Cepha:
+Zawsze przy wszystkich trzech węzłach wyłączonych razem, żeby snapshot był spójny dla całego Cepha:
 
 ```bash
+zfs list -t snapshot -o name,creation,used rpool/vm-lab
+
 for n in incus1 incus2 incus3; do virsh shutdown $n; done
 virsh list --all                                        # czekaj, aż wszystkie będą "shut off"
-sudo zfs snapshot rpool/incuslab@przed-testem
+sudo zfs snapshot rpool/vm-lab@przed-testem
 
 # powrót (węzły wyłączone):
-sudo zfs rollback -r rpool/incuslab@klaster-czysty
+sudo zfs rollback -r rpool/vm-lab@klaster-czysty
 for n in incus1 incus2 incus3; do virsh start $n; done
 ```
 
-**Windows 11** (`rpool/vm`) - przy wyłączonej VM:
-
-```bash
-sudo zfs snapshot rpool/vm@win11-przed-aktualizacja
-sudo zfs rollback -r rpool/vm@win11-przed-aktualizacja   # powrót
-```
-
-- `rollback -r` usuwa snapshoty **nowsze** od wskazanego - tylko w tym jednym datasecie.
-- Snapshot obejmuje dyski, ale nie definicje VM ani stan firmware UEFI i TPM
-  (leżą w `/var/lib/libvirt/qemu` i `/var/lib/libvirt/swtpm`). Zwykle to bez znaczenia;
-  wyjątek: Windows z włączonym BitLockerem po powrocie dysku może poprosić o klucz odzyskiwania.
-- Niepotrzebne snapshoty: `sudo zfs destroy rpool/incuslab@nazwa` (zajmują miejsce,
+- `rollback -r` usuwa snapshoty **nowsze** od wskazanego - tylko w `rpool/vm-lab`.
+- Niepotrzebne snapshoty: `sudo zfs destroy rpool/vm-lab@nazwa` (zajmują miejsce,
   które rośnie wraz ze zmianami na dyskach).
 
 ---
@@ -521,7 +471,7 @@ sudo zfs rollback -r rpool/vm@win11-przed-aktualizacja   # powrót
 | VM nie startuje: *Access Denied* / Secure Boot | maszyna ma firmware z Secure Boot - utwórz ją ponownie skryptem |
 | Brak `mgmt0` / `ceph0` / `ot0` | MAC-i w `virsh domiflist <węzeł>` muszą się zgadzać z `nodes.nix` |
 | `incus launch --vm`: brak `/dev/kvm` | brak zagnieżdżonej wirtualizacji na laptopie: `cat /sys/module/kvm_intel/parameters/nested` musi dać `Y` (`kvm.nix` w `nixos-config`) |
-| `virt-install`: brak katalogu `/var/lib/libvirt/incuslab` | dataset niezamontowany: `sudo zfs mount rpool/incuslab` (krok 1a) |
+| `create-vms.sh`: `/var/lib/libvirt/vm-lab nie jest zamontowany` | brak datasetu `rpool/vm-lab` lub wpisu w `nixos-config` (wymaganie w części 1) |
 | Instancje w `incusbr0` nie dostają adresu IP | `incusbr0` musi być w `networking.firewall.trustedInterfaces` |
 | `ceph -s`: *clock skew detected* | `chronyc tracking` na węzłach; węzły muszą mieć dostęp do NTP |
 | `ceph -s`: *mons are allowing insecure global_id reclaim* | `ceph config set mon auth_allow_insecure_global_id_reclaim false` |
