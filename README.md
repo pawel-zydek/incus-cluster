@@ -175,20 +175,19 @@ i wtedy budują się na laptopie.
 Przy `--no-reboot` nixos-anywhere **nie eksportuje** puli `rpool`. Bez eksportu pula zostaje oznaczona
 jako używana przez instalator i zainstalowany system odmawia jej importu (start kończy się w trybie awaryjnym).
 
+Płyta z instalatorem jest w VM na stałe i ma pierwszeństwo przy starcie, więc przed startem
+z dysku trzeba ją wysunąć:
+
 ```bash
 ssh nixos@192.168.150.11 'sudo umount -Rl /mnt; sudo zpool export -a; sudo zpool list'
 # "no pools available" = pula wyeksportowana
-virsh destroy incus1      # wyłączenie instalatora
-virsh start incus1        # start już z dysku
+virsh destroy incus1                              # wyłączenie instalatora
+virsh change-media incus1 sda --eject --config    # wysunięcie płyty (napęd: virsh domblklist incus1)
+virsh start incus1                                # start już z dysku
 ```
 
-Jeśli mimo to znów uruchomi się instalator, wysuń płytę i uruchom ponownie:
-
-```bash
-virsh domblklist incus1                         # nazwa napędu z ISO, np. sda
-virsh change-media incus1 sda --eject --config
-virsh destroy incus1 && virsh start incus1
-```
+Ponowna instalacja węzła: włożenie płyty i start z niej
+(`virsh change-media incus1 sda /var/lib/libvirt/images/nixos-minimal.iso --insert --config`).
 
 ### 2d. Sprawdzenie i hasło użytkownika
 
