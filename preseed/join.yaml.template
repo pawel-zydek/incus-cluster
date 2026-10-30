@@ -3,6 +3,8 @@
 # Użycie (patrz README):
 #   sed -e "s/NODE_NAME/incus2/" -e "s/NODE_IP/192.168.150.12/" -e "s|TOKEN|<token>|" \
 #     preseed/join.yaml.template | ssh root@192.168.150.12 incus admin init --preseed
+#
+# member_config = ustawienia, które każdy węzeł ma własne (tu: na każdym takie same).
 cluster:
   enabled: true
   server_name: NODE_NAME
@@ -10,6 +12,18 @@ cluster:
   cluster_token: TOKEN
   member_config:
     - entity: storage-pool
-      name: local
+      name: ceph
       key: source
-      value: /dev/disk/by-id/virtio-incus-data
+      value: incus
+    - entity: network
+      name: ot-scada
+      key: bridge.external_interfaces
+      value: ot0.110/ot0/110
+    - entity: network
+      name: ot-srv
+      key: bridge.external_interfaces
+      value: ot0.120/ot0/120
+    - entity: network
+      name: ot-plc
+      key: bridge.external_interfaces
+      value: ot0.130/ot0/130

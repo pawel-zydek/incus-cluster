@@ -1,9 +1,10 @@
-# Założenie klastra na incus1:
+# Założenie klastra na incus1 (po scripts/ceph-bootstrap.sh):
 #   incus admin init --preseed < preseed/incus1-bootstrap.yaml
 config:
   core.https_address: 192.168.150.11:8443
 
 networks:
+  # sieć do testów (kontenery/VM-ki Linux z dostępem do internetu)
   - name: incusbr0
     type: bridge
     config:
@@ -11,11 +12,37 @@ networks:
       ipv4.nat: "true"
       ipv6.address: none
 
-storage_pools:
-  - name: local
-    driver: zfs
+  # Sieci OT: mostek Incusa + interfejs VLAN na trunku ot0, bez IP i DHCP.
+  # Zapis <nazwa>/<rodzic>/<vlan> = Incus sam utworzy interfejs VLAN.
+  # Węzeł nie ma adresu w tych sieciach - jest tylko przełącznikiem L2 dla VM-ek.
+  - name: ot-scada
+    type: bridge
+    description: OT VLAN 110 - stacje operatorskie, klienci WinCC
     config:
-      source: /dev/disk/by-id/virtio-incus-data   # cały drugi dysk węzła
+      bridge.external_interfaces: ot0.110/ot0/110
+      ipv4.address: none
+      ipv6.address: none
+  - name: ot-srv
+    type: bridge
+    description: OT VLAN 120 - serwery WinCC, AD/DNS, usługi
+    config:
+      bridge.external_interfaces: ot0.120/ot0/120
+      ipv4.address: none
+      ipv6.address: none
+  - name: ot-plc
+    type: bridge
+    description: OT VLAN 130 - sterowniki
+    config:
+      bridge.external_interfaces: ot0.130/ot0/130
+      ipv4.address: none
+      ipv6.address: none
+
+storage_pools:
+  # pula RBD "incus" utworzona przez scripts/ceph-bootstrap.sh
+  - name: ceph
+    driver: ceph
+    config:
+      source: incus
 
 profiles:
   - name: default
@@ -23,11 +50,53 @@ profiles:
       root:
         type: disk
         path: /
-        pool: local
+        pool: ceph
       eth0:
         type: nic
         name: eth0
         network: incusbr0
+
+  - name: windows-scada
+    description: Stacja SCADA - Windows 11 + WinCC
+    config:
+      limits.cpu: "2"
+      limits.memory: 4GiB
+      image.os: Windows              # poprawki Incusa dla Windows (oświecenia Hyper-V)
+      security.secureboot: "true"
+      boot.autostart: "true"         # start po restarcie węzła i po przeniesieniu
+    devices:
+      root:
+        type: disk
+        path: /
+        pool: ceph
+        size: 64GiB
+        io.bus: nvme                 # instalator Windows ma sterownik NVMe
+      eth0:
+        type: nic
+        name: eth0
+        network: ot-scada
+      vtpm:                          # TPM 2.0 - wymóg Windows 11
+        type: tpm
+
+  - name: windows-server
+    description: Windows Server - AD/DNS, serwer WinCC, usługi
+    config:
+      limits.cpu: "2"
+      limits.memory: 4GiB
+      image.os: Windows
+      security.secureboot: "true"
+      boot.autostart: "true"
+    devices:
+      root:
+        type: disk
+        path: /
+        pool: ceph
+        size: 60GiB
+        io.bus: nvme
+      eth0:
+        type: nic
+        name: eth0
+        network: ot-srv
 
 cluster:
   server_name: incus1

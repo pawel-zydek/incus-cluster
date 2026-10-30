@@ -1,7 +1,8 @@
 # Układ dysku systemowego (identyczny na każdym węźle).
 # Dysk ma w libvirt numer seryjny "incus-sys", więc ścieżka jest stała na wszystkich VM.
 # Bez szyfrowania - węzeł ma sam wstawać po restarcie.
-# Drugi dysk ("incus-data") NIE jest tu opisany: dostaje go w całości Incus na swoją pulę ZFS.
+# Drugi dysk ("incus-data") NIE jest tu opisany: dostaje go w całości Ceph jako OSD
+# (scripts/ceph-bootstrap.sh).
 { ... }:
 {
   disko.devices = {
