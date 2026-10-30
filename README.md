@@ -31,9 +31,9 @@ Jest to repozytorium do nauki.
 
 | Węzeł | mgmt0 (zarządzanie) | ceph0 (Ceph) | OSD | RAM / vCPU | Dyski |
 |---|---|---|---|---|---|
-| `incus1` | 192.168.150.11 | 10.10.10.11 | osd.0 | 8 GB / 4 | system 30 GB + OSD 60 GB |
-| `incus2` | 192.168.150.12 | 10.10.10.12 | osd.1 | 8 GB / 4 | system 30 GB + OSD 60 GB |
-| `incus3` | 192.168.150.13 | 10.10.10.13 | osd.2 | 8 GB / 4 | system 30 GB + OSD 60 GB |
+| `incus1` | 192.168.150.11 | 10.10.10.11 | osd.0 | 6 GB / 4 | system 30 GB + OSD 60 GB |
+| `incus2` | 192.168.150.12 | 10.10.10.12 | osd.1 | 6 GB / 4 | system 30 GB + OSD 60 GB |
+| `incus3` | 192.168.150.13 | 10.10.10.13 | osd.2 | 6 GB / 4 | system 30 GB + OSD 60 GB |
 
 | Sieć libvirta | Karta węzła | Adresacja | Do czego |
 |---|---|---|---|
@@ -124,11 +124,14 @@ virsh list --all
 Skrypt tworzy `incus1`, `incus2`, `incus3` (3 karty sieciowe, 2 dyski, watchdog) i uruchamia je
 z instalatora. Istniejące maszyny pomija, więc można go uruchomić ponownie.
 
-> **Pamięć:** 3 × 8 GB to 24 GB. Do tego ARC ZFS laptopa i system - przy 32 GB jest ciasno.
-> Na czas laboratorium nie uruchamiaj Windows 11 na laptopie i ogranicz ARC laptopa, np. do 4 GB
-> (`boot.kernelParams = [ "zfs.zfs_arc_max=4294967296" ];` w `nixos-config`) albo doraźnie:
-> `echo 4294967296 | sudo tee /sys/module/zfs/parameters/zfs_arc_max`.
-> 6 GB na węzeł wystarczy dla samego Cepha i Incusa, ale nie zmieści już VM-ki Windows.
+> **Pamięć:** 3 × 6 GB to 18 GB. Razem z ARC ZFS laptopa (limit 8 GB w `nixos-config`)
+> i systemem mieści się w 32 GB, ale nie uruchamiaj w tym czasie Windows 11 na laptopie.
+> Na węźle zostaje ok. 2,5 GB na instancje - wystarczy na lekkie VM-ki Debiana (krok 5a),
+> nie na Windows (do tego `RAM_MB=8192` w skrypcie).
+>
+> Zmiana RAM-u już utworzonej VM (np. po zmianie `RAM_MB`):
+> `virsh setmaxmem incus1 6GiB --config && virsh setmem incus1 6GiB --config`, potem
+> `virsh destroy incus1 && virsh start incus1` (nowa wartość działa od następnego startu).
 
 ---
 
@@ -316,9 +319,58 @@ Snapshot po założeniu klastra (przy wyłączonych węzłach): `sudo zfs snapsh
 
 ---
 
-# 5. VM z Windows
+# 5. Instancje testowe w sieciach OT
 
-Na laptopie przygotuj ISO Windows i
+### 5a. VM-ki Debiana
+
+W labie zamiast Windows - lekkie VM-ki Debiana (bez środowiska graficznego) w VLAN-ach OT.
+Sprawdzają to samo: dysk na Cephie, sieć VLAN, automatyczne przeniesienie po awarii węzła.
+Obraz `debian/13/cloud` ma cloud-init, więc stały adres IP podaje się przy tworzeniu
+(sieci OT nie mają DHCP).
+
+```bash
+ssh root@192.168.150.11
+
+incus launch images:debian/13/cloud srv1 --vm --target incus2 \
+  --network ot-srv \
+  -c limits.cpu=1 -c limits.memory=1GiB -c boot.autostart=true \
+  -c cloud-init.network-config="$(cat <<'EOF'
+version: 2
+ethernets:
+  lan:
+    match:
+      name: "en*"
+    addresses: [10.100.120.11/24]
+EOF
+)"
+
+incus list -c nsL4                    # srv1 na incus2, adres 10.100.120.11
+incus exec srv1 -- ip -br addr        # konsola bez sieci (przez agenta Incusa)
+```
+
+- `--network ot-srv` zastępuje kartę z profilu `default` (`incusbr0`) kartą w VLAN 120.
+- Dysk główny pochodzi z profilu `default`, czyli z puli `ceph`.
+- Kolejne VM-ki analogicznie, np. `scada1` w `ot-scada` (10.100.110.11). Adresacja przykładowa -
+  dopasuj do własnej koncepcji segmentacji.
+
+**Dostęp z laptopa do VLAN-u** (np. SSH/ping do `srv1` w VLAN 120) - laptop działa wtedy jak
+stacja inżynierska wpięta w VLAN (do restartu laptopa):
+
+```bash
+sudo ip link add link virbr152 name virbr152.120 type vlan id 120
+sudo ip addr add 10.100.120.250/24 dev virbr152.120
+sudo ip link set virbr152.120 up
+ping 10.100.120.11
+# usunięcie: sudo ip link del virbr152.120
+```
+
+> **Pojemność labu:** na węźle 6 GB zostaje ok. 2,5 GB na instancje. Po awarii węzła jego
+> instancje muszą się zmieścić na pozostałych dwóch - w sumie trzymaj się ok. 4 GB na cały
+> klaster (np. 3-4 VM-ki po 1 GB).
+
+### 5b. Windows (docelowo; w labie wymaga węzłów 8 GB)
+
+Profile `windows-scada` i `windows-server` są gotowe w klastrze. Potrzebne ISO Windows i
 [virtio-win](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso)
 (sterownik karty sieciowej i agent). Obrazy trafiają do Ceph jako woluminy, więc instalację
 widać z każdego węzła.
@@ -341,24 +393,10 @@ naciśnij klawisz (*Press any key to boot from CD*). Jeśli VM wejdzie w powłok
 
 - Dysk jest na NVMe, więc instalator Windows widzi go bez dodatkowych sterowników.
 - W OOBE Windows 11 bez sieci: `Shift+F10` → `oobe\bypassnro`.
-- Po instalacji: `virtio-win-guest-tools.exe` z płyty virtio-win (sieć, agent), adres IP statycznie
-  (sieci OT nie mają DHCP), potem odłącz płyty:
-  `incus config device remove scada1 install` i `incus config device remove scada1 virtio`.
+- Po instalacji: `virtio-win-guest-tools.exe` z płyty virtio-win (sieć, agent), adres IP statycznie,
+  potem odłącz płyty: `incus config device remove scada1 install` i `... remove scada1 virtio`.
 
 Windows Server tak samo, z profilem `windows-server` (sieć `ot-srv`).
-
-**Dostęp z laptopa do VLAN-u** (np. RDP do VM-ki w VLAN 110) - laptop działa wtedy jak stacja
-inżynierska wpięta w VLAN (do restartu laptopa):
-
-```bash
-sudo ip link add link virbr152 name virbr152.110 type vlan id 110
-sudo ip addr add 10.100.110.250/24 dev virbr152.110      # adresacja wg własnej koncepcji
-sudo ip link set virbr152.110 up
-# usunięcie: sudo ip link del virbr152.110
-```
-
-> **Pojemność labu:** na węźle 8 GB zostaje ok. 4–4,5 GB na instancje. Do testów HA wystarczy
-> jedna VM Windows 4 GB - po awarii jej węzła musi się zmieścić na jednym z pozostałych.
 
 ---
 
@@ -377,7 +415,7 @@ ssh root@192.168.150.11 'watch -n2 "incus list -c nsL; ceph -s | head -12"'
 | 3 | planowy serwis | procedura z „Codzienna praca” | VM-ki przeniesione przed restartem i z powrotem, Ceph wraca do `HEALTH_OK` |
 | 4 | odcięcie tylko sieci Ceph | `virsh domif-setlink incus2 52:54:00:51:00:12 down` | **znane ograniczenie**: instancje na incus2 zamarzają (brak I/O), Incus ich nie przenosi, bo węzeł jest „online”. W produkcji: redundantna sieć Ceph |
 
-Mierz czas od awarii do działającej wizualizacji.
+Mierz czas od awarii do ponownej odpowiedzi instancji, np. `ping 10.100.120.11` z laptopa (dostęp do VLAN-u - krok 5a).
 Test 2: log samoogrodzenia po restarcie - `ssh root@192.168.150.12 journalctl -u self-fence -b -1`.
 
 Po testach:

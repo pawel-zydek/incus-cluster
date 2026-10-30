@@ -8,7 +8,7 @@ set -euo pipefail
 
 ISO=/var/lib/libvirt/images/nixos-minimal.iso
 IMG_DIR=/var/lib/libvirt/vm-lab     # dyski węzłów - osobny dataset ZFS rpool/vm-lab
-RAM_MB=8192        # na węzeł: Ceph (MON+MGR+OSD) ok. 2,5 GB + system + VM-ki
+RAM_MB=6144        # na węzeł: Ceph + system ok. 3,5 GB, reszta na lekkie VM-ki (Windows: 8192)
 VCPUS=4
 SYS_GB=30          # dysk systemowy NixOS
 DATA_GB=60         # dysk OSD Ceph (qcow2 rośnie w miarę zapisu)
