@@ -1,0 +1,10 @@
+<!--
+  Trunk OT: izolowany przełącznik L2. Zwykły mostek Linuksa przepuszcza ramki
+  z tagami VLAN, więc działa jak port trunk przełącznika zakładowego.
+  VLAN-y (110, 120, 130) tworzy Incus na węzłach - patrz preseed/.
+  Dostęp z laptopa do wybranego VLAN-u: README, "VM z Windows".
+-->
+<network>
+  <name>incuslab-ot</name>
+  <bridge name="virbr152" stp="off" delay="0"/>
+</network>

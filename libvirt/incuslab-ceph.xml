@@ -1,0 +1,8 @@
+<!--
+  Sieć Ceph: izolowany przełącznik L2 tylko dla węzłów (10.10.10.0/24).
+  Bez NAT i DHCP, laptop nie ma tu adresu - adresy ustawia NixOS (nodes.nix).
+-->
+<network>
+  <name>incuslab-ceph</name>
+  <bridge name="virbr151" stp="off" delay="0"/>
+</network>
