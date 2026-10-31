@@ -56,12 +56,13 @@ profiles:
         name: eth0
         network: incusbr0
 
+  # Profile Windows. Klucz image.os=Windows (poprawki Incusa dla Windows) można ustawić
+  # tylko na instancji, nie w profilu - przy tworzeniu VM: -c image.os=Windows (README, krok 5b).
   - name: windows-scada
     description: Stacja SCADA - Windows 11 + WinCC
     config:
       limits.cpu: "2"
       limits.memory: 4GiB
-      image.os: Windows              # poprawki Incusa dla Windows (oświecenia Hyper-V)
       security.secureboot: "true"
       boot.autostart: "true"         # start po restarcie węzła i po przeniesieniu
     devices:
@@ -83,7 +84,6 @@ profiles:
     config:
       limits.cpu: "2"
       limits.memory: 4GiB
-      image.os: Windows
       security.secureboot: "true"
       boot.autostart: "true"
     devices:

@@ -382,7 +382,7 @@ incus storage volume import ceph /var/tmp/Win11.iso win11-iso --type=iso
 incus storage volume import ceph /var/tmp/virtio-win.iso virtio-win --type=iso
 rm /var/tmp/*.iso
 
-incus init scada1 --empty --vm --profile windows-scada
+incus init scada1 --empty --vm --profile windows-scada -c image.os=Windows
 incus config device add scada1 install disk pool=ceph source=win11-iso boot.priority=10
 incus config device add scada1 virtio  disk pool=ceph source=virtio-win
 ```
@@ -396,6 +396,8 @@ naciśnij klawisz (*Press any key to boot from CD*). Jeśli VM wejdzie w powłok
   potem odłącz płyty: `incus config device remove scada1 install` i `... remove scada1 virtio`.
 
 Windows Server tak samo, z profilem `windows-server` (sieć `ot-srv`).
+`-c image.os=Windows` włącza poprawki Incusa dla Windows; ustawia się go na instancji,
+bo Incus nie przyjmuje kluczy `image.*` w profilach.
 
 ---
 
