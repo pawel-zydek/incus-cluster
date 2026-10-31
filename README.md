@@ -289,7 +289,7 @@ Wszystkie trzy węzły powinny mieć stan `ONLINE`, a w kolumnie ról `database`
 ### 4c. Automatyczne odtwarzanie instancji
 
 ```bash
-ssh root@192.168.150.11 incus config set cluster.healing_threshold 60
+ssh root@192.168.150.11 incus config set cluster.healing_threshold=60
 ```
 
 60 s to czas od uznania węzła za offline (domyślnie po 20 s) do uruchomienia jego instancji
