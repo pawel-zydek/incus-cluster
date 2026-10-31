@@ -167,8 +167,8 @@ nix run github:nix-community/nixos-anywhere -- \
 nixos-anywhere łączy się przez SSH, uruchamia disko (**kasuje dysk systemowy VM**)
 i instaluje system z tego repozytorium. Dysk OSD pozostaje pusty.
 
-Pierwsza instalacja trwa dłużej: jądro 7.2 i ZFS dla niego mogą nie być jeszcze w cache NixOS
-i wtedy budują się na laptopie.
+Pierwsza instalacja trwa dłużej: jądro 7.2 i ZFS dla niego mogą nie być jeszcze w cache NixOS,
+a QEMU z obsługą Cepha (`modules/incus.nix`) nie ma tam na pewno - budują się na laptopie.
 
 ### 2c. Eksport puli i pierwszy start z dysku
 
@@ -514,6 +514,7 @@ for n in incus1 incus2 incus3; do virsh start $n; done
 | Instancje w `incusbr0` nie dostają adresu IP | `incusbr0` musi być w `networking.firewall.trustedInterfaces` |
 | `ceph -s`: *clock skew detected* | `chronyc tracking` na węzłach; węzły muszą mieć dostęp do NTP |
 | `ceph -s`: *mons are allowing insecure global_id reclaim* | `ceph config set mon auth_allow_insecure_global_id_reclaim false` |
+| VM nie startuje: *Unknown driver 'rbd'* | QEMU bez obsługi Cepha - węzeł nie ma wdrożonej konfiguracji z nakładką na `qemu_kvm` (`modules/incus.nix`) |
 | Instancja nie startuje: błąd mapowania RBD | węzeł nie działa na jądrze 7.x (`uname -r`) - restart po wdrożeniu |
 | Instancja po awarii nie przeniosła się | ma urządzenie lokalne (dysk spoza Cepha, sieć niezarządzaną przez Incus, USB) - `journalctl -u incus` na liderze klastra |
 | Po awarii węzeł ma stan `EVACUATED` | to normalne po automatycznym odtworzeniu: `incus cluster restore <węzeł>` |

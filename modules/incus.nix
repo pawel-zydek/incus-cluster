@@ -12,7 +12,16 @@
     ui.enable = true;   # panel WWW: https://<adres węzła>:8443
   };
 
-  # Incus podłącza dyski RBD przez moduł jądra (krbd)
+  # Dyski VM-ek na Cephie QEMU otwiera własnym sterownikiem "rbd" (librbd).
+  # qemu_kvm z nixpkgs jest budowany bez Cepha ("Unknown driver 'rbd'"), więc włączamy go tutaj.
+  # Ta wersja QEMU nie jest w cache NixOS - przy pierwszym wdrożeniu buduje się na laptopie.
+  nixpkgs.overlays = [
+    (final: prev: {
+      qemu_kvm = prev.qemu_kvm.override { cephSupport = true; };
+    })
+  ];
+
+  # Kontenery i woluminy Incus podłącza przez moduł jądra (krbd)
   boot.kernelModules = [ "rbd" ];
 
   # Incus startuje po lokalnych demonach Ceph (sama kolejność, bez twardej zależności -
